@@ -9,7 +9,9 @@ const PORT = 8080;
 app.use(express.json());
 
 const dictReport = {
-    report: ["Request Profile Report", "List and Request Document Copies", "Request Certificate of Status"]
+    document: ["Request Profile Report", "List and Request Document Copies", "Request Certificate of Status"],
+    report:['Current Report', 'Previous Date']
+
 }
 app.post('/search', async (req, res) => {
     const { query } = req.body;
@@ -33,19 +35,20 @@ app.post('/search', async (req, res) => {
         await page.waitForSelector('.appRepeaterRowContent', { state: 'visible', timeout: 5000 });
 
         const companies = await page.evaluate(() => {
+            let i=1;
             const nodes = Array.from(document.querySelectorAll('.appRepeaterRowContent'));
-            const knowas = Array.from(document.querySelectorAll('.appMinimalValue'));
             return nodes.map(node => ({
+                id: i++,
                 type: node.querySelector('.appRecordChildren .appRawText')?.textContent?.trim() || 'Without title',
-                titleCompanyName: node.querySelector('.appRecordChildren .appMinimalMenu a span:nth-child(2)')?.textContent?.trim() || 'Without title',
-                location: node.querySelector('.appRecordChildren .appAttrValue')?.textContent?.trim() || 'Without location',
-                companyStatus: node.querySelector('.appRecordChildren .Status .appMinimalValue')?.textContent?.trim() || 'Without status',
+                value: node.querySelector('.appRecordChildren .appMinimalMenu a span:nth-child(2)')?.textContent?.trim() || 'Without title',
+                address: node.querySelector('.appRecordChildren .appAttrValue')?.textContent?.trim() || 'Without location',
+                status: node.querySelector('.appRecordChildren .Status .appMinimalValue')?.textContent?.trim() || 'Without status',
                 previousNames: Array.from(node.querySelectorAll('.appMinimalBox .appMinimalRep .appMinimalValue'))
                 .map(el => el.textContent.trim()) || ['Without known as']
             }));
         });
         const urlStatus = page.url();
-        res.json({ query, urlStatus, companies });
+        res.json({ urlStatus, companies });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'The process failed' });
@@ -55,7 +58,7 @@ app.post('/search', async (req, res) => {
 });
 
 app.use('/selectCompany', async (req, res) => {
-    const { urlState, companyName, reportType } = req.body;
+    const { urlState, companyName, documentType, reportType, previousDate } = req.body;
     if (!companyName) {
         return res.status(500).json({ message: "Required the name company" });
     }
@@ -64,12 +67,13 @@ app.use('/selectCompany', async (req, res) => {
     try {
 
         const locationTitle = `//span[contains(text(),'${companyName}')]`;
-        const typeReport = `//span[contains(text(),'${dictReport.report[reportType]}')]`;
-        const optionCurrentReport = "//label[text()='Current Report']";
+        const typeReport = `//span[contains(text(),'${dictReport.document[documentType]}')]`;
+        const optionCurrentReport = `//label[text()='${dictReport.report[reportType]}']`;
         const buttonContinue = '.basketPay-buttonPad-item2-completeTransactionButton'
         const submitButton = '.brRequestExtract-buttonPad-applyButton'
         const checkAllDocuments = '//label[contains(@for,"SelectAllFiling")]'
         const buttonRequestDocuments = '.listAndRequestDocumentCopies-buttonPad-apply'
+        const inputPreviousDate = '.webuiValidateDate';
 
         await page.goto(urlState);
         await page.locator(locationTitle).click();
@@ -78,15 +82,20 @@ app.use('/selectCompany', async (req, res) => {
         if(visible){
             await page.locator(typeReport).click()
         }else{
-            res.status(404).json({message: `The document type "${dictReport.report[reportType]}" doesn't exist for "${companyName}" business registry`});
+            res.status(404).json({message: `The document type "${dictReport.document[documentType]}" doesn't exist for "${companyName}" business registry`});
             await page.close();
         }
         await page.waitForTimeout(2000);
         await page.getByRole('textbox', {name:"Requestor’s Email Address * Requestor’s Email Address Opens a help popup."}).fill("sebastian.duque@infotrackcanada.com")
         await page.getByRole('textbox', {name:"Confirm Requestor's Email Address *"}).fill("sebastian.duque@infotrackcanada.com")
-        switch(reportType){
+        switch(documentType){
             case 0:
                 await page.locator(optionCurrentReport).click()
+                if(reportType == 1){
+                    const date = new Date(previousDate);
+                    const dateFormat = date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+                    await page.locator(inputPreviousDate).fill(dateFormat)
+                }
                 await page.locator(submitButton).click();
                 break;
             case 1:
@@ -105,7 +114,7 @@ app.use('/selectCompany', async (req, res) => {
         await page.locator(buttonContinue).click();
         
         await page.getByAltText('Make Payment').click();
-        await page.getByPlaceholder('Name on card').fill(faker.finance.accountName())
+        await page.getByPlaceholder('Name on card').fill(faker.person.fullName())
         await page.getByPlaceholder('Card number').fill(faker.finance.creditCardNumber())
         await page.locator('select[name="trnExpMonth"]').selectOption("11")
         await page.locator('select[name="trnExpYear"]').selectOption("30")
