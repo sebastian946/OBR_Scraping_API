@@ -14,5 +14,8 @@
     "express": "^4.21.2",
     "playwright": "^1.50.1",
     "typescript": "^5.7.3"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.4.0"
   }
 }
