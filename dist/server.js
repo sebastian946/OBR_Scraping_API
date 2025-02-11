@@ -34,11 +34,14 @@ app.post('/search', async (req, res) => {
 
         const companies = await page.evaluate(() => {
             const nodes = Array.from(document.querySelectorAll('.appRepeaterRowContent'));
+            const knowas = Array.from(document.querySelectorAll('.appMinimalValue'));
             return nodes.map(node => ({
                 type: node.querySelector('.appRecordChildren .appRawText')?.textContent?.trim() || 'Without title',
                 titleCompanyName: node.querySelector('.appRecordChildren .appMinimalMenu a span:nth-child(2)')?.textContent?.trim() || 'Without title',
                 location: node.querySelector('.appRecordChildren .appAttrValue')?.textContent?.trim() || 'Without location',
-                companyStatus: node.querySelector('.appRecordChildren .Status .appMinimalValue')?.textContent?.trim() || 'Without status'
+                companyStatus: node.querySelector('.appRecordChildren .Status .appMinimalValue')?.textContent?.trim() || 'Without status',
+                previousNames: Array.from(node.querySelectorAll('.appMinimalBox .appMinimalRep .appMinimalValue'))
+                .map(el => el.textContent.trim()) || ['Without known as']
             }));
         });
         const urlStatus = page.url();
@@ -91,7 +94,6 @@ app.use('/selectCompany', async (req, res) => {
                 await page.locator(buttonRequestDocuments).click();
                 break;
             case 2:
-                console.log(typeReport)
                 await page.locator('.requestCertificateOfStatus-buttonPad-apply').click();
                 break;
         }
